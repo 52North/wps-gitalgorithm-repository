@@ -66,6 +66,15 @@ public class DirectoryWatcherTest {
 
         new DirectoryWatcher(tmpWatchedDir, watchlistener);
 
+        //give the watcher a little time
+        try {
+            Thread.sleep(1000);
+        } catch (Exception e) {
+            /*
+             * ignore
+             */
+        }
+
         File newfile = new File(tmpWatchedDir + File.separator + "newFile.txt");
 
         try {
@@ -76,15 +85,6 @@ public class DirectoryWatcherTest {
         } catch (IOException e) {
             logger.error("Could not create new file, {}.", newfile.getAbsolutePath());
             logger.error(e.getMessage());
-        }
-
-        //give the watcher a little time
-        try {
-            Thread.sleep(2000);
-        } catch (Exception e) {
-            /*
-             * ignore
-             */
         }
         
         verify(watchlistener).handleNewFile(newfile.getAbsolutePath());
