@@ -35,6 +35,11 @@ This project includes:
   52North WPS Input/Ouput Implementation under GNU GENERAL PUBLIC LICENSE Version 2, June 1991
   52North WPS Input/Output API under Apache License, Version 2.0
   52North WPS Server under GNU GENERAL PUBLIC LICENSE Version 2, June 1991
+  52°North Iceland under The Apache Software License, Version 2.0
+  52°North SOS - 2.0 XML Request Coding under GPLv2
+  52°North SOS - SOS API Module under GPLv2
+  52°North Third Party - NCName resolver under BSD 2-clause "Simplified" or "FreeBSD"
+                License
   AOP alliance under Public Domain
   Apache Velocity under The Apache Software License, Version 2.0
   API interfaces under Lesser General Public License (LGPL)
@@ -42,6 +47,7 @@ This project includes:
   Autotag - Core runtime under The Apache Software License, Version 2.0
   Bean Validation API under The Apache Software License, Version 2.0
   builder under Apache License 2.0
+  ClassLoader leak prevention under Apache 2
   ClassMate under The Apache Software License, Version 2.0
   Collections under The Apache Software License, Version 2.0
   common under Eclipse Public License (EPL)
@@ -65,6 +71,7 @@ This project includes:
   Filter Encoding Specification Model under Lesser General Public License (LGPL)
   Filter Encoding Specification XML Support under Lesser General Public License (LGPL)
   Filter XML Support under Lesser General Public License (LGPL)
+  FindBugs-Annotations under GNU Lesser Public License
   FreeMarker under BSD-style license
   GeoJSON Support under Lesser General Public License (LGPL)
   GeoTIFF grid coverage exchange module under Lesser General Public License (LGPL)
@@ -85,12 +92,13 @@ This project includes:
   Jackson under The Apache Software License, Version 2.0
   Jackson-annotations under The Apache Software License, Version 2.0
   Jackson-core under The Apache Software License, Version 2.0
-  jackson-databind under The Apache Software License, Version 2.0 or Lesser Gnu Public License (LGPL), Version 2.1
+  jackson-databind under The Apache Software License, Version 2.0
   jai_codec under Java Advanced Imaging Distribution License, http://download.java.net/media/jai/builds/release/1_1_3/LICENSE-jai.txt
   jai_imageio under Java Advanced Imaging Distribution License, http://download.java.net/media/jai/builds/release/1_1_3/LICENSE-jai.txt
   Java Advanced Imaging under Java Advanced Imaging Distribution License, http://download.java.net/media/jai/builds/release/1_1_3/LICENSE-jai.txt
   JavaEWAH under Apache 2
-  Javassist under MPL 1.1
+  Javassist under MPL 1.1 or LGPL 2.1 or Apache License 2.0
+  javax.inject under The Apache Software License, Version 2.0
   JBoss Logging 3 under GNU Lesser General Public License, version 2.1
   JCL 1.1.1 implemented over SLF4J under MIT License
   jdom under JDOM license, https://github.com/hunterhacker/jdom/blob/master/LICENSE.txt
@@ -114,9 +122,18 @@ This project includes:
   Metadata under Lesser General Public License (LGPL)
   Mockito under The MIT License
   mvel under The Apache Software License, Version 2.0
+  OASIS WS-N specification schemas - including WS-BrokeredNotification (v1.3) under The Apache Software License, Version 2.0
+  OASIS WS-Resources specification schemas v1.2 under The Apache Software License, Version 2.0
   Objenesis under MIT License
+  OGC Filter schema (spec. v2.0) under The Apache Software License, Version 2.0
+  OGC GML schema (spec. v3.2.1) under The Apache Software License, Version 2.0
+  OGC O&M schema (spec. v2.0) under The Apache Software License, Version 2.0
   OGC OWS schema (spec. v1.1.0) under GNU GENERAL PUBLIC LICENSE Version 2, June 1991
   OGC OWS schema (spec. v2.0) under The Apache Software License, Version 2.0
+  OGC Sampling schema (spec. v2.0) under The Apache Software License, Version 2.0
+  OGC SOS schema (spec. v2.0) under The Apache Software License, Version 2.0
+  OGC SWECommon schema (spec. v2.0) under The Apache Software License, Version 2.0
+  OGC SWES schema (spec. v2.0) under The Apache Software License, Version 2.0
   OGC WPS schema (spec. v1.0.0) under GNU GENERAL PUBLIC LICENSE Version 2, June 1991
   OGC WPS schema (spec. v2.0) under The Apache Software License, Version 2.0
   ogckml2.2 under GNU GENERAL PUBLIC LICENSE (GPL Version 2, June 1991)
@@ -127,6 +144,8 @@ This project includes:
   OWS XML Support under Lesser General Public License (LGPL)
   PicoContainer Core under BSD License
   Referencing services under Lesser General Public License (LGPL)
+  Reflections under WTFPL or The New BSD License
+  servlet-api under CDDL 1.1 or GPL2 w/ CPE
   Shapefile module under Lesser General Public License (LGPL)
   SLF4J API Module under MIT License
   Spring AOP under The Apache Software License, Version 2.0
@@ -169,8 +188,9 @@ This project includes:
   Tiles request - Servlet support under The Apache Software License, Version 2.0
   Tiles Request - Velocity support under The Apache Software License, Version 2.0
   Tiles Request - Wildcard file loading in Servlets under The Apache Software License, Version 2.0
-  vecmath under GNU General Public License (GPL), version 2, with the CLASSPATH exception
+  vecmath under GPL 2.0 license w/ CPE
   VelocityTools under The Apache Software License, Version 2.0
+  W3C WS-Addressing specification schemas (v1.0) under The Apache Software License, Version 2.0
   W3C xlink schema (spec. v1.1.0) under GNU GENERAL PUBLIC LICENSE Version 2, June 1991
   Web Feature Service Model under Lesser General Public License (LGPL)
   WFS XML Support under Lesser General Public License (LGPL)

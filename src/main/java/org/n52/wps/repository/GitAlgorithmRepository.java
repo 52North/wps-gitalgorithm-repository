@@ -28,9 +28,20 @@
  */
 package org.n52.wps.repository;
 
+import static java.nio.file.StandardWatchEventKinds.ENTRY_CREATE;
+import static java.nio.file.StandardWatchEventKinds.OVERFLOW;
+
 import java.io.File;
 import java.io.FilenameFilter;
 import java.io.IOException;
+import java.nio.file.FileSystems;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.WatchEvent;
+import java.nio.file.WatchKey;
+import java.nio.file.WatchService;
+import java.nio.file.WatchEvent.Kind;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -79,6 +90,8 @@ public class GitAlgorithmRepository implements ITransactionalAlgorithmRepository
 
     private CustomClassLoader customClassLoader;
 
+    private List<String> changedFiles;
+    
     public GitAlgorithmRepository() throws IOException {
 
         algorithmMap = new HashMap<>();
@@ -107,8 +120,8 @@ public class GitAlgorithmRepository implements ITransactionalAlgorithmRepository
 
         File localGitRepoDirectory = new File(localGitRepoDirectoryPath);
 
-        boolean noChange = false;
-
+        changedFiles = new ArrayList<>();
+        
         if (localGitRepoDirectory.exists()) {
             // check for updates, fetch
             localRepo = new FileRepository(localGitRepoDirectoryPath);
@@ -118,10 +131,10 @@ public class GitAlgorithmRepository implements ITransactionalAlgorithmRepository
             try {
                 result = git.fetch().setCheckFetchedObjects(true).call();
 
-                if (result.getMessages().trim().isEmpty()) {
-                    // no changes
-                    noChange = true;
-                }// TODO else, pull repo, check which classes have been changed
+                if (!result.getMessages().trim().isEmpty()) {
+                    // there are changes, check messages and add changed files to list
+                    //TODO
+                }
 
             } catch (GitAPIException e) {
                 logger.error("Failed to fetch from " + remotePath);
@@ -136,32 +149,19 @@ public class GitAlgorithmRepository implements ITransactionalAlgorithmRepository
                 // TODO exception?!
             }
         }
-        // compile algorithms
-        File[] javaProcesses = localGitRepoDirectory.getParentFile().listFiles(new FilenameFilter() {
+        // get algorithms
+        File[] algorithmFiles = getFiles(localGitRepoDirectory);
 
+        addJavaAlgorithms(algorithmFiles);
+        
+        //add watcher TODO maybe make configurable
+        new DirectoryWatcher(localGitRepoDirectory.getParentFile(), new WatchListener() {
+            
             @Override
-            public boolean accept(File dir,
-                    String name) {
-                return name.matches(filenameRegex);
+            public void handleNewFile(String filename) {
+                addJavaAlgorithms(new File[]{new File(filename)});                
             }
         });
-
-        for (File file : javaProcesses) {
-
-            // check if class file exists
-            File classFile = new File(file.getAbsolutePath().replace(".java", ".class"));
-
-            // if nothing has changed and class file exists, skip compiling
-            if (!(noChange & classFile.exists())) {
-                JavaProcessCompiler.compile(file.getAbsolutePath());
-            }
-
-            String plainFilename = file.getName().replace(".java", "");
-
-            // load algorithm
-            addAlgorithm(plainFilename);
-        }
-
     }
 
     @Override
@@ -248,6 +248,39 @@ public class GitAlgorithmRepository implements ITransactionalAlgorithmRepository
         }
 
         return algorithm;
+    }
+    
+    private File[] getFiles(File localGitRepoDirectory){
+        // compile algorithms
+        File[] files = localGitRepoDirectory.getParentFile().listFiles(new FilenameFilter() {
+
+            @Override
+            public boolean accept(File dir,
+                    String name) {
+                return name.matches(filenameRegex);
+            }
+        });
+        
+        return files;
+    }
+    
+    private void addJavaAlgorithms(File[] algorithmFiles){
+
+        for (File file : algorithmFiles) {
+
+            // check if class file exists
+            File classFile = new File(file.getAbsolutePath().replace(".java", ".class"));
+
+            // if nothing has changed and class file exists, skip compiling
+            if (changedFiles.contains(file.getName()) | !classFile.exists()) {
+                JavaProcessCompiler.compile(file.getAbsolutePath());
+            }
+
+            String plainFilename = file.getName().replace(".java", "");
+
+            // load algorithm
+            addAlgorithm(plainFilename);
+        }
     }
 
 }
