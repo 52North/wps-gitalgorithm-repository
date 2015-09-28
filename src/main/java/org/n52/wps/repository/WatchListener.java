@@ -31,4 +31,8 @@ package org.n52.wps.repository;
 public interface WatchListener {
 
     public void handleNewFile(String filename);
+
+    public void handleDeleteFile(String filename);
+
+    public void handleModifiedFile(String filename);
 }

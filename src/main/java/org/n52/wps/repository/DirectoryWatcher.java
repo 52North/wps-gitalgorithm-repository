@@ -29,6 +29,7 @@
 package org.n52.wps.repository;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.ClosedWatchServiceException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -36,54 +37,105 @@ import java.nio.file.StandardWatchEventKinds;
 import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Directory watcher 
- * 
+ * Directory watcher
+ *
  * @author Benjamin Pross
  *
  */
 public class DirectoryWatcher {
 
     private static final Logger logger = LoggerFactory.getLogger(DirectoryWatcher.class);
-    
-    public DirectoryWatcher(String directory, final WatchListener listener) {
-        
-        final Path path = Paths.get(directory);
-        
-        Thread thread = new Thread() {
-            public void run() {
-                try {
-                    final WatchService service = path.getFileSystem().newWatchService();
-                    WatchKey key = path.register(service, StandardWatchEventKinds.ENTRY_CREATE);
-                    try {
-                        while (true) {
-                            for (WatchEvent<?> event : service.take().pollEvents()){
-                                Path createdPath = path.resolve((Path)event.context());
-                                listener.handleNewFile(createdPath.toString());
-                                logger.info("File "+createdPath+" was created.");
-                            }
-                            key.reset();
-                        }
-                    } catch (ClosedWatchServiceException e) {
-                        logger.info("Service closed");
-                    }
-                } catch (Throwable e) {
-                    e.printStackTrace();
-                } finally {
-                    logger.info("Watcher thread exiting");
-                }
-            }
-        };
-        thread.setDaemon(true);
-        thread.start();
-    }
-    
 
-    public DirectoryWatcher(File directory, WatchListener listener) {
+    private final ExecutorService service = Executors.newSingleThreadExecutor();
+
+    private final WatchListener listener;
+
+    private final Path directory;
+
+    private boolean running;
+
+    public DirectoryWatcher(File directory, final WatchListener listener) {
         this(directory.getAbsolutePath(), listener);
     }
+
+    public DirectoryWatcher(String directory, final WatchListener listener) {
+        this.directory = Paths.get(directory);
+        this.listener = listener;
+    }
+
+    public DirectoryWatcher start() {
+        try {
+            running = true;
+            final WatchService watchService = directory.getFileSystem().newWatchService();
+            WatchKey key = directory.register(watchService,
+                    StandardWatchEventKinds.ENTRY_CREATE,
+                    StandardWatchEventKinds.ENTRY_DELETE,
+                    StandardWatchEventKinds.ENTRY_MODIFY);
+            service.execute(new Thread() {
+                @Override
+                public void run() {
+                    handleEvents(watchService);
+                }
+            });
+        } catch (IOException e) {
+            logger.error("Could not start watching directory {}", directory.toString(), e);
+        }
+        return this;
+    }
+
+    public void stop() {
+        running = false;
+        service.shutdownNow();
+    }
+
+    private void handleEvents(WatchService watchService) {
+        try {
+            while (running) {
+                WatchKey key = watchService.take(); // waits, if empty
+                for (WatchEvent<?> event : key.pollEvents()) {
+                    handleEvent(event);
+                    if ( !key.reset()) {
+                        stop(); //got invalid
+                        break;
+                    }
+                }
+            }
+        } catch (ClosedWatchServiceException e) {
+            logger.info("Service closed", e);
+        } catch (InterruptedException e) {
+            logger.error("Could not handle event(s) on directory {}", directory, e);
+        } finally {
+            logger.info("Watcher thread exiting");
+        }
+    }
+
+    private void handleEvent(WatchEvent<?> event) {
+        if (event.kind() == StandardWatchEventKinds.OVERFLOW) {
+            return;
+        }
+
+        Path changed = directory.resolve((Path) event.context());
+        if (event.kind() == StandardWatchEventKinds.ENTRY_CREATE) {
+            listener.handleNewFile(changed.toString());
+            logger.info("File " + changed + " was created.");
+        } else if (event.kind() == StandardWatchEventKinds.ENTRY_DELETE) {
+            listener.handleDeleteFile(changed.toString());
+            // TODO
+        } else if (event.kind() == StandardWatchEventKinds.ENTRY_MODIFY) {
+            logger.info("no handle to update modified entries.");
+            // TODO
+        }
+    }
+
 }

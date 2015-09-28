@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -60,7 +61,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * GitAlgorithmRepository
- * 
+ *
  * @author Benjamin Pross
  *
  */
@@ -68,25 +69,29 @@ public class GitAlgorithmRepository implements ITransactionalAlgorithmRepository
 
     private static final Logger logger = LoggerFactory.getLogger(GitAlgorithmRepository.class);
 
+    private final DirectoryWatcher directoryWatch;
+
     private String localPath, remotePath, filenameRegex;
 
     private Repository localRepo;
 
-    private Map<String, ProcessDescription> processDescriptionMap;
+    private final Map<IAlgorithm, ProcessDescription> processDescriptions;
 
-    private Map<String, IAlgorithm> algorithmMap;
+    private final Map<String, IAlgorithm> javaAlgorithms;
+
+    private final Map<String, IAlgorithm> rAlgorithms;
 
     private ConfigurationModule gitAlgorithmRepoConfigModule;
 
     private CustomClassLoader customClassLoader;
 
     private List<String> changedFiles;
-    
+
     public GitAlgorithmRepository() throws IOException {
 
-        algorithmMap = new HashMap<>();
-
-        processDescriptionMap = new HashMap<>();
+        rAlgorithms = new HashMap<>();
+        javaAlgorithms = new HashMap<>();
+        processDescriptions = new HashMap<>();
 
         gitAlgorithmRepoConfigModule = WPSConfig.getInstance().getConfigurationModuleForClass(this.getClass().getName(), ConfigurationCategory.REPOSITORY);
 
@@ -111,7 +116,7 @@ public class GitAlgorithmRepository implements ITransactionalAlgorithmRepository
         File localGitRepoDirectory = new File(localGitRepoDirectoryPath);
 
         changedFiles = new ArrayList<>();
-        
+
         if (localGitRepoDirectory.exists()) {
             // check for updates, fetch
             localRepo = new FileRepository(localGitRepoDirectoryPath);
@@ -127,7 +132,7 @@ public class GitAlgorithmRepository implements ITransactionalAlgorithmRepository
                 }
 
             } catch (GitAPIException e) {
-                logger.error("Failed to fetch from " + remotePath);
+                logger.error("Failed to fetch from " + remotePath, e);
             }
 
         } else {
@@ -143,39 +148,67 @@ public class GitAlgorithmRepository implements ITransactionalAlgorithmRepository
         File[] algorithmFiles = getFiles(localGitRepoDirectory);
 
         addJavaAlgorithms(algorithmFiles);
-        
+        addRAlgorithms(algorithmFiles);
+
         //add watcher TODO maybe make configurable
-        new DirectoryWatcher(localGitRepoDirectory.getParentFile(), new WatchListener() {
-            
+        directoryWatch = new DirectoryWatcher(localGitRepoDirectory.getParentFile(), new WatchListener() {
             @Override
             public void handleNewFile(String filename) {
-                addJavaAlgorithms(new File[]{new File(filename)});                
+                final File file = new File(filename);
+                if (isJavaFile(file)) {
+                    addJavaAlgorithms(new File[]{ file});
+                } else if (isRFile(file)) {
+                    addRAlgorithms(new File[]{ file });
+                }
             }
-        });
+
+            @Override
+            public void handleDeleteFile(String filename) {
+                // TODO
+            }
+
+            @Override
+            public void handleModifiedFile(String filename) {
+                handleNewFile(filename); // TODO sufficient?
+            }
+        }).start();
     }
 
     @Override
     public boolean containsAlgorithm(String arg0) {
-        return algorithmMap.containsKey(arg0);
+        return javaAlgorithms.containsKey(arg0)
+                || rAlgorithms.containsKey(arg0);
     }
 
     @Override
     public IAlgorithm getAlgorithm(String arg0) {
-        return algorithmMap.get(arg0);
+        return javaAlgorithms.containsKey(arg0)
+                ? javaAlgorithms.get(arg0)
+                : rAlgorithms.get(arg0);
     }
 
     @Override
     public Collection<String> getAlgorithmNames() {
-        return algorithmMap.keySet();
+        Collection<String> keys = new HashSet<>();
+        keys.addAll(javaAlgorithms.keySet());
+        keys.addAll(rAlgorithms.keySet());
+        return keys;
     }
 
     @Override
     public ProcessDescription getProcessDescription(String arg0) {
-        return processDescriptionMap.get(arg0);
+        if ( !containsAlgorithm(arg0)) {
+            throw new NullPointerException("No 'null' algorithm!");
+        }
+        IAlgorithm algorithm = javaAlgorithms.containsKey(arg0)
+                ? javaAlgorithms.get(arg0)
+                : rAlgorithms.get(arg0);
+        return processDescriptions.get(algorithm);
     }
 
     @Override
     public void shutdown() {
+        directoryWatch.stop();
         localRepo.close();
     }
 
@@ -185,6 +218,7 @@ public class GitAlgorithmRepository implements ITransactionalAlgorithmRepository
         return false;
     }
 
+    @Override
     public boolean addAlgorithm(Object processID) {
         if (!(processID instanceof String)) {
             return false;
@@ -193,12 +227,12 @@ public class GitAlgorithmRepository implements ITransactionalAlgorithmRepository
 
         try {
 
-            IAlgorithm algorithm = loadAlgorithm(algorithmClassName);
+            IAlgorithm algorithm = loadJavaAlgorithm(algorithmClassName);
 
             // Use fully qualified name for algorithm id
             String algorithmIdentifier = algorithm.getWellKnownName();
-            processDescriptionMap.put(algorithmIdentifier, algorithm.getDescription());
-            algorithmMap.put(algorithmIdentifier, algorithm);
+            processDescriptions.put(algorithm, algorithm.getDescription());
+            javaAlgorithms.put(algorithmIdentifier, algorithm);
             AlgorithmEntry algorithmEntry = new AlgorithmEntry(algorithmIdentifier, true);
             gitAlgorithmRepoConfigModule.getAlgorithmEntries().add(algorithmEntry);
             logger.info("Algorithm class registered: {}" + " identifier: {}", algorithmClassName, algorithmIdentifier);
@@ -213,7 +247,7 @@ public class GitAlgorithmRepository implements ITransactionalAlgorithmRepository
 
     }
 
-    private IAlgorithm loadAlgorithm(String algorithmClassName) throws Exception {
+    private IAlgorithm loadJavaAlgorithm(String algorithmClassName) throws Exception {
         Class<?> algorithmClass = customClassLoader.loadClass(algorithmClassName);
         IAlgorithm algorithm = null;
         if (IAlgorithm.class.isAssignableFrom(algorithmClass)) {
@@ -239,7 +273,7 @@ public class GitAlgorithmRepository implements ITransactionalAlgorithmRepository
 
         return algorithm;
     }
-    
+
     private File[] getFiles(File localGitRepoDirectory){
         // compile algorithms
         File[] files = localGitRepoDirectory.getParentFile().listFiles(new FilenameFilter() {
@@ -250,13 +284,24 @@ public class GitAlgorithmRepository implements ITransactionalAlgorithmRepository
                 return name.matches(filenameRegex);
             }
         });
-        
+
         return files;
     }
-    
+
+
+    private void addRAlgorithms(File[] algorithmFiles) {
+
+        // TODO
+
+    }
+
+
     private void addJavaAlgorithms(File[] algorithmFiles){
 
         for (File file : algorithmFiles) {
+            if ( !isJavaFile(file)) {
+                continue;
+            }
 
             // check if class file exists
             File classFile = new File(file.getAbsolutePath().replace(".java", ".class"));
@@ -271,6 +316,14 @@ public class GitAlgorithmRepository implements ITransactionalAlgorithmRepository
             // load algorithm
             addAlgorithm(plainFilename);
         }
+    }
+
+    private boolean isJavaFile(File file) {
+        return file.getAbsolutePath().endsWith(".java");
+    }
+
+    private boolean isRFile(File file) {
+        return file.getAbsolutePath().toLowerCase().endsWith(".r");
     }
 
 }

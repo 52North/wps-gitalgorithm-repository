@@ -62,7 +62,8 @@ public class DirectoryWatcherTest {
 
         logger.info("Starting to watch  directory {}", tmpWatchedDir);
 
-        new DirectoryWatcher(tmpWatchedDir, watchlistener);
+        DirectoryWatcher watcher = new DirectoryWatcher(tmpWatchedDir, watchlistener);
+        watcher.start();
 
         //give the watcher a little time
         try {
@@ -84,7 +85,7 @@ public class DirectoryWatcherTest {
             logger.error("Could not create new file, {}.", newfile.getAbsolutePath());
             logger.error(e.getMessage());
         }
-        
+
         verify(watchlistener).handleNewFile(newfile.getAbsolutePath());
     }
 
