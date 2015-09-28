@@ -26,30 +26,42 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
  * Public License for more details.
  */
-package org.n52.wps.repository;
+package org.n52.wps.repository.git;
 
 import java.io.File;
 import java.io.FilenameFilter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.MergeResult;
+import org.eclipse.jgit.api.PullResult;
+import org.eclipse.jgit.api.ResetCommand;
 import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.diff.DiffEntry;
+import org.eclipse.jgit.errors.RevisionSyntaxException;
 import org.eclipse.jgit.internal.storage.file.FileRepository;
+import org.eclipse.jgit.lib.ObjectId;
+import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.merge.ResolveMerger;
 import org.eclipse.jgit.transport.FetchResult;
+import org.eclipse.jgit.treewalk.CanonicalTreeParser;
 import org.n52.wps.algorithm.annotation.Algorithm;
 import org.n52.wps.algorithm.util.CustomClassLoader;
 import org.n52.wps.algorithm.util.JavaProcessCompiler;
 import org.n52.wps.commons.WPSConfig;
-import org.n52.wps.repository.module.GitAlgorithmRepositoryCM;
+import org.n52.wps.repository.git.module.GitAlgorithmRepositoryCM;
 import org.n52.wps.server.AbstractAnnotatedAlgorithm;
 import org.n52.wps.server.IAlgorithm;
+import org.n52.wps.server.IAlgorithmRepository;
 import org.n52.wps.server.ITransactionalAlgorithmRepository;
 import org.n52.wps.server.ProcessDescription;
 import org.n52.wps.webapp.api.AlgorithmEntry;
@@ -65,7 +77,7 @@ import org.slf4j.LoggerFactory;
  * @author Benjamin Pross
  *
  */
-public class GitAlgorithmRepository implements ITransactionalAlgorithmRepository {
+public class GitAlgorithmRepository implements IAlgorithmRepository {
 
     private static final Logger logger = LoggerFactory.getLogger(GitAlgorithmRepository.class);
 
@@ -87,11 +99,12 @@ public class GitAlgorithmRepository implements ITransactionalAlgorithmRepository
 
     private List<String> changedFiles;
 
-    public GitAlgorithmRepository() throws IOException {
+    public GitAlgorithmRepository() throws UpdateGitAlgorithmsRepositoryException, GitAlgorithmsRepositoryConfigException {
 
         rAlgorithms = new HashMap<>();
         javaAlgorithms = new HashMap<>();
         processDescriptions = new HashMap<>();
+        changedFiles = new ArrayList<>();
 
         gitAlgorithmRepoConfigModule = WPSConfig.getInstance().getConfigurationModuleForClass(this.getClass().getName(), ConfigurationCategory.REPOSITORY);
 
@@ -107,43 +120,14 @@ public class GitAlgorithmRepository implements ITransactionalAlgorithmRepository
                 filenameRegex = (String) configurationEntry.getValue();
             }
         }
-        // set base directory of CustomClassLoader to local git repository
-        // directory
+        // set base directory of CustomClassLoader to local git repository directory
         customClassLoader = new CustomClassLoader(localPath);
 
         String localGitRepoDirectoryPath = localPath + File.separator + ".git";
 
         File localGitRepoDirectory = new File(localGitRepoDirectoryPath);
+        initGitRepository(localGitRepoDirectoryPath, localGitRepoDirectory);
 
-        changedFiles = new ArrayList<>();
-
-        if (localGitRepoDirectory.exists()) {
-            // check for updates, fetch
-            localRepo = new FileRepository(localGitRepoDirectoryPath);
-            Git git = new Git(localRepo);
-            logger.debug("Starting fetch from " + remotePath);
-            FetchResult result;
-            try {
-                result = git.fetch().setCheckFetchedObjects(true).call();
-
-                if (!result.getMessages().trim().isEmpty()) {
-                    // there are changes, check messages and add changed files to list
-                    //TODO
-                }
-
-            } catch (GitAPIException e) {
-                logger.error("Failed to fetch from " + remotePath, e);
-            }
-
-        } else {
-            // get algorithms from git
-            try {
-                Git.cloneRepository().setURI(remotePath).setDirectory(new File(localPath)).call();
-            } catch (GitAPIException e) {
-                logger.error("Could not clone remote repository: " + remotePath, e);
-                // TODO exception?!
-            }
-        }
         // get algorithms
         File[] algorithmFiles = getFiles(localGitRepoDirectory);
 
@@ -173,6 +157,163 @@ public class GitAlgorithmRepository implements ITransactionalAlgorithmRepository
             }
         }).start();
     }
+
+    private void initGitRepository(String pathWorkingCopy, File localGitRepoDirectory) throws GitAlgorithmsRepositoryConfigException, UpdateGitAlgorithmsRepositoryException {
+        try {
+            localRepo = new FileRepository(pathWorkingCopy);
+            if (localGitRepoDirectory.exists()) {
+                ObjectId old = currentHeadToObjectId();
+                changedFiles = updateLocalRepository(old);
+            } else {
+                cloneToLocalRepository();
+            }
+        } catch (IOException e) {
+            throw new GitAlgorithmsRepositoryConfigException("Could not create local repository with: " + pathWorkingCopy, e);
+        }
+    }
+
+    private void cloneToLocalRepository() throws GitAlgorithmsRepositoryConfigException {
+        try {
+            Git.cloneRepository().setURI(remotePath).setDirectory(new File(localPath)).call();
+        } catch (GitAPIException e) {
+            throw new GitAlgorithmsRepositoryConfigException("Cloning failed: " + remotePath, e);
+        }
+    }
+
+    private Collection<DiffEntry> updateLocalRepository(ObjectId old) throws UpdateGitAlgorithmsRepositoryException {
+        try {
+            Git git = new Git(localRepo);
+            logger.debug("Starting pulling from {} ({})", remotePath, old);
+            PullResult result = git.pull().call();
+            if ( !result.isSuccessful()) {
+                printMergeSummary(result);
+                rollbackFromFailedMerge(git, old);
+                return Collections.emptyList();
+            }
+            logger.info("Successfully pulled changes.");
+            ObjectId current = currentHeadToObjectId();
+            return getDiffEntries(git, old, current);
+
+        } catch (IOException | GitAPIException e) {
+            throw new UpdateGitAlgorithmsRepositoryException("Failed to pull from " + remotePath, e);
+        }
+    }
+
+    private void printMergeSummary(PullResult pullResult) {
+        StringBuilder sb = new StringBuilder();
+        MergeResult result = pullResult.getMergeResult();
+        sb.append("Merge failed with status ").append(result.getMergeStatus().name());
+        result.getFailingPaths().entrySet()
+                .stream()
+                .forEach(failed -> sb
+                        .append(failed.getKey())
+                        .append(" -> ")
+                        .append(failed.getValue())
+                        .append("\n"));
+    }
+
+    private void rollbackFromFailedMerge(Git git, ObjectId old) throws GitAPIException {
+        // old objectId is the one before merge so we should be safe to have the right rollback id
+        logger.warn("Doing a `reset --hard {}' from faild merge. Pull and merge manually!", old);
+        git.reset().setMode(ResetCommand.ResetType.HARD).setRef(old.toString()).call();
+    }
+
+    private Collection<DiffEntry> getDiffEntries(Git git, ObjectId old, ObjectId newer) throws IOException, GitAPIException {
+        ObjectReader reader = localRepo.newObjectReader();
+        CanonicalTreeParser oldTreeIter = new CanonicalTreeParser();
+        oldTreeIter.reset(reader, old);
+        CanonicalTreeParser newTreeIter = new CanonicalTreeParser();
+        newTreeIter.reset(reader, newer);
+        return git.diff()
+                .setNewTree(newTreeIter)
+                .setOldTree(oldTreeIter)
+                .call();
+    }
+
+    private ObjectId currentHeadToObjectId() throws RevisionSyntaxException, IOException {
+        return localRepo.resolve("HEAD^{tree}");
+    }
+
+    private void addJavaAlgorithms(File[] algorithmFiles){
+        for (File file : algorithmFiles) {
+            if ( !isJavaFile(file)) {
+                continue;
+            }
+
+            // check if class file exists
+            File classFile = new File(file.getAbsolutePath().replace(".java", ".class"));
+
+            // if nothing has changed and class file exists, skip compiling
+            if (changedFiles.contains(file.getName()) | !classFile.exists()) {
+                JavaProcessCompiler.compile(file.getAbsolutePath());
+            }
+
+            String plainFilename = file.getName().replace(".java", "");
+            try {
+                IAlgorithm algorithm = loadJavaAlgorithm(plainFilename);
+                String algorithmIdentifier = algorithm.getWellKnownName();
+                javaAlgorithms.put(algorithmIdentifier, algorithm);
+                registerCommonDescriptions(algorithm, plainFilename);
+            } catch (Exception e) {
+                // TODO refine control flow here!
+                logger.error("Exception while trying to add algorithm {}", plainFilename);
+                logger.error(e.getMessage());
+            }
+        }
+    }
+
+    private IAlgorithm loadJavaAlgorithm(String algorithmClassName) throws Exception {
+        Class<?> algorithmClass = customClassLoader.loadClass(algorithmClassName);
+        IAlgorithm algorithm;
+        if (IAlgorithm.class.isAssignableFrom(algorithmClass)) {
+            algorithm = IAlgorithm.class.cast(algorithmClass.newInstance());
+        } else if (algorithmClass.isAnnotationPresent(Algorithm.class)) {
+            // we have an annotated algorithm that doesn't implement IAlgorithm
+            // wrap it in a proxy class
+            algorithm = new AbstractAnnotatedAlgorithm.Proxy(algorithmClass);
+        } else {
+            // algorithms can have helper classes
+            throw new Exception(algorithmClassName + " non assignable to IAlgorithm.");
+        }
+
+        boolean isNoProcessDescriptionValid = false;
+
+        for (String supportedVersion : WPSConfig.SUPPORTED_VERSIONS) {
+            isNoProcessDescriptionValid = isNoProcessDescriptionValid && !algorithm.processDescriptionIsValid(supportedVersion);
+        }
+
+        if (isNoProcessDescriptionValid) {
+            logger.warn("Algorithm description is not valid: " + algorithmClassName);// TOD add version to exception/log
+            throw new Exception("Could not load algorithm " + algorithmClassName + ". ProcessDescription Not Valid.");
+        }
+
+        return algorithm;
+    }
+
+    private void addRAlgorithms(File[] algorithmFiles) {
+
+        // TODO
+
+    }
+
+    private void registerCommonDescriptions(IAlgorithm algorithm, String plainFilename) {
+        String algorithmIdentifier = algorithm.getWellKnownName();
+        processDescriptions.put(algorithm, algorithm.getDescription());
+        AlgorithmEntry algorithmEntry = new AlgorithmEntry(algorithmIdentifier, true);
+        gitAlgorithmRepoConfigModule.getAlgorithmEntries().add(algorithmEntry);
+        logger.info("Algorithm class registered: {}" + " identifier: {}", plainFilename, algorithmIdentifier);
+    }
+
+    private File[] getFiles(File localGitRepoDirectory){
+        final File workingCopy = localGitRepoDirectory.getParentFile();
+        return workingCopy.listFiles(new FilenameFilter() {
+            @Override
+            public boolean accept(File dir, String name) {
+                return name.matches(filenameRegex);
+            }
+        });
+    }
+
 
     @Override
     public boolean containsAlgorithm(String arg0) {
@@ -206,116 +347,9 @@ public class GitAlgorithmRepository implements ITransactionalAlgorithmRepository
         return processDescriptions.get(algorithm);
     }
 
-    @Override
-    public void shutdown() {
-        directoryWatch.stop();
-        localRepo.close();
-    }
-
-    @Override
-    public boolean removeAlgorithm(Object arg0) {
+    boolean removeAlgorithm(Object arg0) {
         // TODO remove?
         return false;
-    }
-
-    @Override
-    public boolean addAlgorithm(Object processID) {
-        if (!(processID instanceof String)) {
-            return false;
-        }
-        String algorithmClassName = (String) processID;
-
-        try {
-
-            IAlgorithm algorithm = loadJavaAlgorithm(algorithmClassName);
-
-            // Use fully qualified name for algorithm id
-            String algorithmIdentifier = algorithm.getWellKnownName();
-            processDescriptions.put(algorithm, algorithm.getDescription());
-            javaAlgorithms.put(algorithmIdentifier, algorithm);
-            AlgorithmEntry algorithmEntry = new AlgorithmEntry(algorithmIdentifier, true);
-            gitAlgorithmRepoConfigModule.getAlgorithmEntries().add(algorithmEntry);
-            logger.info("Algorithm class registered: {}" + " identifier: {}", algorithmClassName, algorithmIdentifier);
-
-            return true;
-        } catch (Exception e) {
-            logger.error("Exception while trying to add algorithm {}", algorithmClassName);
-            logger.error(e.getMessage());
-        }
-
-        return false;
-
-    }
-
-    private IAlgorithm loadJavaAlgorithm(String algorithmClassName) throws Exception {
-        Class<?> algorithmClass = customClassLoader.loadClass(algorithmClassName);
-        IAlgorithm algorithm = null;
-        if (IAlgorithm.class.isAssignableFrom(algorithmClass)) {
-            algorithm = IAlgorithm.class.cast(algorithmClass.newInstance());
-        } else if (algorithmClass.isAnnotationPresent(Algorithm.class)) {
-            // we have an annotated algorithm that doesn't implement IAlgorithm
-            // wrap it in a proxy class
-            algorithm = new AbstractAnnotatedAlgorithm.Proxy(algorithmClass);
-        } else {
-            throw new Exception("Could not load algorithm " + algorithmClassName + " does not implement IAlgorithm or have a Algorithm annotation.");
-        }
-
-        boolean isNoProcessDescriptionValid = false;
-
-        for (String supportedVersion : WPSConfig.SUPPORTED_VERSIONS) {
-            isNoProcessDescriptionValid = isNoProcessDescriptionValid && !algorithm.processDescriptionIsValid(supportedVersion);
-        }
-
-        if (isNoProcessDescriptionValid) {
-            logger.warn("Algorithm description is not valid: " + algorithmClassName);// TOD add version to exception/log
-            throw new Exception("Could not load algorithm " + algorithmClassName + ". ProcessDescription Not Valid.");
-        }
-
-        return algorithm;
-    }
-
-    private File[] getFiles(File localGitRepoDirectory){
-        // compile algorithms
-        File[] files = localGitRepoDirectory.getParentFile().listFiles(new FilenameFilter() {
-
-            @Override
-            public boolean accept(File dir,
-                    String name) {
-                return name.matches(filenameRegex);
-            }
-        });
-
-        return files;
-    }
-
-
-    private void addRAlgorithms(File[] algorithmFiles) {
-
-        // TODO
-
-    }
-
-
-    private void addJavaAlgorithms(File[] algorithmFiles){
-
-        for (File file : algorithmFiles) {
-            if ( !isJavaFile(file)) {
-                continue;
-            }
-
-            // check if class file exists
-            File classFile = new File(file.getAbsolutePath().replace(".java", ".class"));
-
-            // if nothing has changed and class file exists, skip compiling
-            if (changedFiles.contains(file.getName()) | !classFile.exists()) {
-                JavaProcessCompiler.compile(file.getAbsolutePath());
-            }
-
-            String plainFilename = file.getName().replace(".java", "");
-
-            // load algorithm
-            addAlgorithm(plainFilename);
-        }
     }
 
     private boolean isJavaFile(File file) {
@@ -324,6 +358,12 @@ public class GitAlgorithmRepository implements ITransactionalAlgorithmRepository
 
     private boolean isRFile(File file) {
         return file.getAbsolutePath().toLowerCase().endsWith(".r");
+    }
+
+    @Override
+    public void shutdown() {
+        directoryWatch.stop();
+        localRepo.close();
     }
 
 }

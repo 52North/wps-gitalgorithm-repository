@@ -26,13 +26,13 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
  * Public License for more details.
  */
-package org.n52.wps.repository.module;
+package org.n52.wps.repository.git.module;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import org.n52.wps.repository.GitAlgorithmRepository;
+import org.n52.wps.repository.git.GitAlgorithmRepository;
 import org.n52.wps.webapp.api.AlgorithmEntry;
 import org.n52.wps.webapp.api.ClassKnowingModule;
 import org.n52.wps.webapp.api.ConfigurationCategory;
