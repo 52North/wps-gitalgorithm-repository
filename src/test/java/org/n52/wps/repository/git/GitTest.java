@@ -47,7 +47,7 @@ import org.slf4j.LoggerFactory;
 public class GitTest {
 
     private static final Logger logger = LoggerFactory.getLogger(GitTest.class);
-    
+
     private String localPath, remotePath;
 
     private Repository localRepo;

@@ -31,6 +31,8 @@ package org.n52.wps.repository.git;
 import java.io.File;
 import java.io.FilenameFilter;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -81,9 +83,13 @@ public class GitAlgorithmRepository implements IAlgorithmRepository {
 
     private static final Logger logger = LoggerFactory.getLogger(GitAlgorithmRepository.class);
 
-    private final DirectoryWatcher directoryWatch;
+    private DirectoryWatcher repositoryWatcher;
 
-    private String localPath, remotePath, filenameRegex;
+    private String localPath;
+
+    private String remotePath;
+
+    private String filenameRegex;
 
     private Repository localRepo;
 
@@ -97,10 +103,13 @@ public class GitAlgorithmRepository implements IAlgorithmRepository {
 
     private CustomClassLoader customClassLoader;
 
-    private List<String> changedFiles;
+    private Collection<DiffEntry> changedFiles;
 
     public GitAlgorithmRepository() throws UpdateGitAlgorithmsRepositoryException, GitAlgorithmsRepositoryConfigException {
+        this(true);
+    }
 
+    protected GitAlgorithmRepository(boolean startRepositoryWatcher) throws UpdateGitAlgorithmsRepositoryException, GitAlgorithmsRepositoryConfigException {
         rAlgorithms = new HashMap<>();
         javaAlgorithms = new HashMap<>();
         processDescriptions = new HashMap<>();
@@ -110,7 +119,7 @@ public class GitAlgorithmRepository implements IAlgorithmRepository {
 
         List<? extends ConfigurationEntry<?>> configEntries = gitAlgorithmRepoConfigModule.getConfigurationEntries();
 
-        //TODO use specified git branch
+        // TODO use specified git branch
         for (ConfigurationEntry<?> configurationEntry : configEntries) {
             if (configurationEntry.getKey().equals(GitAlgorithmRepositoryCM.localRepositoryDirectoryKey)) {
                 localPath = (String) configurationEntry.getValue();
@@ -123,19 +132,22 @@ public class GitAlgorithmRepository implements IAlgorithmRepository {
         // set base directory of CustomClassLoader to local git repository directory
         customClassLoader = new CustomClassLoader(localPath);
 
-        String localGitRepoDirectoryPath = localPath + File.separator + ".git";
+        File gitDirectory = new File(localPath + File.separator + ".git");
+        boolean readyToGo = initGitRepository(gitDirectory);
 
-        File localGitRepoDirectory = new File(localGitRepoDirectoryPath);
-        initGitRepository(localGitRepoDirectoryPath, localGitRepoDirectory);
-
-        // get algorithms
-        File[] algorithmFiles = getFiles(localGitRepoDirectory);
-
+        if (readyToGo) {
+            addAlgorithms(gitDirectory, startRepositoryWatcher);
+        }
+    }
+    
+    private void addAlgorithms(File gitDirectory, boolean startRepositoryWatcher) {
+        File[] algorithmFiles = getFiles(gitDirectory);
         addJavaAlgorithms(algorithmFiles);
         addRAlgorithms(algorithmFiles);
 
         //add watcher TODO maybe make configurable
-        directoryWatch = new DirectoryWatcher(localGitRepoDirectory.getParentFile(), new WatchListener() {
+        final File workingCopy = gitDirectory.getParentFile();
+        repositoryWatcher = new DirectoryWatcher(workingCopy, new WatchListener() {
             @Override
             public void handleNewFile(String filename) {
                 final File file = new File(filename);
@@ -155,26 +167,39 @@ public class GitAlgorithmRepository implements IAlgorithmRepository {
             public void handleModifiedFile(String filename) {
                 handleNewFile(filename); // TODO sufficient?
             }
-        }).start();
-    }
+        });
 
-    private void initGitRepository(String pathWorkingCopy, File localGitRepoDirectory) throws GitAlgorithmsRepositoryConfigException, UpdateGitAlgorithmsRepositoryException {
-        try {
-            localRepo = new FileRepository(pathWorkingCopy);
-            if (localGitRepoDirectory.exists()) {
-                ObjectId old = currentHeadToObjectId();
-                changedFiles = updateLocalRepository(old);
-            } else {
-                cloneToLocalRepository();
-            }
-        } catch (IOException e) {
-            throw new GitAlgorithmsRepositoryConfigException("Could not create local repository with: " + pathWorkingCopy, e);
+        if (startRepositoryWatcher) {
+            repositoryWatcher.start();
         }
     }
 
-    private void cloneToLocalRepository() throws GitAlgorithmsRepositoryConfigException {
+    private boolean initGitRepository(File gitDirectory) {
         try {
-            Git.cloneRepository().setURI(remotePath).setDirectory(new File(localPath)).call();
+            localRepo = new FileRepository(gitDirectory);
+            if (localRepo.getRef("HEAD") == null) {
+                cloneToLocalRepository();
+            } else {
+                ObjectId old = currentHeadToObjectId();
+                changedFiles = updateLocalRepository(old);
+            }
+            return true;
+        } catch (IOException e) {
+            logger.error("Couldn't create .git directory: " + gitDirectory, e);
+            return false;
+        } catch (GitAlgorithmsRepositoryConfigException | UpdateGitAlgorithmsRepositoryException e) {
+            logger.error("Could not init Git repository!", e);
+            return false;
+        }
+    }
+
+    private File[] cloneToLocalRepository() throws GitAlgorithmsRepositoryConfigException {
+        try {
+            Git git = Git.cloneRepository()
+                    .setDirectory(new File(localPath))
+                    .setURI(remotePath)
+                    .call();
+            return getFiles(git.getRepository().getWorkTree());
         } catch (GitAPIException e) {
             throw new GitAlgorithmsRepositoryConfigException("Cloning failed: " + remotePath, e);
         }
@@ -244,7 +269,7 @@ public class GitAlgorithmRepository implements IAlgorithmRepository {
             File classFile = new File(file.getAbsolutePath().replace(".java", ".class"));
 
             // if nothing has changed and class file exists, skip compiling
-            if (changedFiles.contains(file.getName()) | !classFile.exists()) {
+            if (hasDiffEntry(file) || !classFile.exists()) {
                 JavaProcessCompiler.compile(file.getAbsolutePath());
             }
 
@@ -259,6 +284,27 @@ public class GitAlgorithmRepository implements IAlgorithmRepository {
                 logger.error("Exception while trying to add algorithm {}", plainFilename);
                 logger.error(e.getMessage());
             }
+        }
+    }
+
+    private boolean hasDiffEntry(File file) {
+        return changedFiles.stream()
+                .anyMatch(diff ->
+                        diff.getChangeType() == DiffEntry.ChangeType.ADD
+                                ? isDiffEntryOf(file, diff.getNewPath())
+                                : isDiffEntryOf(file, diff.getOldPath())
+                );
+    }
+
+    private boolean isDiffEntryOf(File file, String relPathOfDiff) {
+        try {
+            final String canonicalFilePath = file.getCanonicalPath();
+            final Path absoluteFilePath = Paths.get(localPath).resolve(relPathOfDiff);
+            final String canonicalDiffEntryPath = absoluteFilePath.toFile().getCanonicalPath();
+            return canonicalFilePath.equals(canonicalDiffEntryPath);
+        } catch (IOException e) {
+            logger.error("Couldn't determine if {} is equal to {}.", file.getAbsoluteFile(), relPathOfDiff, e);
+            return false;
         }
     }
 
@@ -362,7 +408,7 @@ public class GitAlgorithmRepository implements IAlgorithmRepository {
 
     @Override
     public void shutdown() {
-        directoryWatch.stop();
+        repositoryWatcher.stop();
         localRepo.close();
     }
 
