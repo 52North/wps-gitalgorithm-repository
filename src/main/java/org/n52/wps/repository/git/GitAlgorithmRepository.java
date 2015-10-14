@@ -40,7 +40,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.MergeResult;
@@ -53,8 +52,6 @@ import org.eclipse.jgit.internal.storage.file.FileRepository;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.Repository;
-import org.eclipse.jgit.merge.ResolveMerger;
-import org.eclipse.jgit.transport.FetchResult;
 import org.eclipse.jgit.treewalk.CanonicalTreeParser;
 import org.n52.wps.algorithm.annotation.Algorithm;
 import org.n52.wps.algorithm.util.CustomClassLoader;
@@ -64,8 +61,9 @@ import org.n52.wps.repository.git.module.GitAlgorithmRepositoryCM;
 import org.n52.wps.server.AbstractAnnotatedAlgorithm;
 import org.n52.wps.server.IAlgorithm;
 import org.n52.wps.server.IAlgorithmRepository;
-import org.n52.wps.server.ITransactionalAlgorithmRepository;
 import org.n52.wps.server.ProcessDescription;
+import org.n52.wps.server.RepositoryManager;
+import org.n52.wps.server.RepositoryManagerSingletonWrapper;
 import org.n52.wps.webapp.api.AlgorithmEntry;
 import org.n52.wps.webapp.api.ConfigurationCategory;
 import org.n52.wps.webapp.api.ConfigurationModule;
@@ -97,7 +95,9 @@ public class GitAlgorithmRepository implements IAlgorithmRepository {
 
     private final Map<String, IAlgorithm> javaAlgorithms;
 
-    private final Map<String, IAlgorithm> rAlgorithms;
+//    private final Map<String, IAlgorithm> rAlgorithms;
+    
+    private final Map<File, String> file2Wkn;
 
     private ConfigurationModule gitAlgorithmRepoConfigModule;
 
@@ -110,8 +110,9 @@ public class GitAlgorithmRepository implements IAlgorithmRepository {
     }
 
     protected GitAlgorithmRepository(boolean startRepositoryWatcher) throws UpdateGitAlgorithmsRepositoryException, GitAlgorithmsRepositoryConfigException {
-        rAlgorithms = new HashMap<>();
+//        rAlgorithms = new HashMap<>();
         javaAlgorithms = new HashMap<>();
+        file2Wkn = new HashMap<>();
         processDescriptions = new HashMap<>();
         changedFiles = new ArrayList<>();
 
@@ -150,9 +151,10 @@ public class GitAlgorithmRepository implements IAlgorithmRepository {
         repositoryWatcher = new DirectoryWatcher(workingCopy, new WatchListener() {
             @Override
             public void handleNewFile(String filename) {
+                logger.debug("adding/overriding algorithm '{}'", filename);
                 final File file = new File(filename);
                 if (isJavaFile(file)) {
-                    addJavaAlgorithms(new File[]{ file});
+                    addJavaAlgorithms(new File[]{ file });
                 } else if (isRFile(file)) {
                     addRAlgorithms(new File[]{ file });
                 }
@@ -160,11 +162,30 @@ public class GitAlgorithmRepository implements IAlgorithmRepository {
 
             @Override
             public void handleDeleteFile(String filename) {
-                // TODO
+                
+                // TODO untested
+                
+                logger.debug("deleting algorithm '{}'", filename);
+                File file = new File(filename);
+                if (file2Wkn.containsKey(file)) {
+                    String wkn = file2Wkn.get(file);
+                    if (isJavaFile(file)) {
+                        unregisterAlgorithm(wkn, javaAlgorithms);
+                    } 
+                } else if (isRFile(file)) {
+                    removeRAlgorithmGlobally(file);
+                }
+            }
+            
+            private void unregisterAlgorithm(String wkn, Map<String, IAlgorithm> algorithms) {
+                IAlgorithm algorithm = algorithms.get(wkn);
+                processDescriptions.remove(algorithm);
+                algorithms.remove(wkn);
             }
 
             @Override
             public void handleModifiedFile(String filename) {
+                logger.debug("modified algorithm '{}'", filename);
                 handleNewFile(filename); // TODO sufficient?
             }
         });
@@ -278,6 +299,7 @@ public class GitAlgorithmRepository implements IAlgorithmRepository {
                 IAlgorithm algorithm = loadJavaAlgorithm(plainFilename);
                 String algorithmIdentifier = algorithm.getWellKnownName();
                 javaAlgorithms.put(algorithmIdentifier, algorithm);
+                file2Wkn.put(file, algorithmIdentifier);
                 registerCommonDescriptions(algorithm, plainFilename);
             } catch (Exception e) {
                 // TODO refine control flow here!
@@ -337,9 +359,13 @@ public class GitAlgorithmRepository implements IAlgorithmRepository {
     }
 
     private void addRAlgorithms(File[] algorithmFiles) {
-
-        // TODO
-
+        for (File file : algorithmFiles) {
+            if ( !isRFile(file)) {
+                continue;
+            }
+            RepositoryManager repoMgr = RepositoryManagerSingletonWrapper.getInstance();
+            repoMgr.addAlgorithm(file);
+        }
     }
 
     private void registerCommonDescriptions(IAlgorithm algorithm, String plainFilename) {
@@ -360,25 +386,25 @@ public class GitAlgorithmRepository implements IAlgorithmRepository {
         });
     }
 
-
     @Override
     public boolean containsAlgorithm(String arg0) {
         return javaAlgorithms.containsKey(arg0)
-                || rAlgorithms.containsKey(arg0);
+                /*|| rAlgorithms.containsKey(arg0)*/;
     }
 
     @Override
     public IAlgorithm getAlgorithm(String arg0) {
-        return javaAlgorithms.containsKey(arg0)
-                ? javaAlgorithms.get(arg0)
-                : rAlgorithms.get(arg0);
+        return javaAlgorithms.get(arg0);
+//        return javaAlgorithms.containsKey(arg0)
+//                ? javaAlgorithms.get(arg0)
+//                : rAlgorithms.get(arg0);
     }
 
     @Override
     public Collection<String> getAlgorithmNames() {
         Collection<String> keys = new HashSet<>();
         keys.addAll(javaAlgorithms.keySet());
-        keys.addAll(rAlgorithms.keySet());
+//        keys.addAll(rAlgorithms.keySet());
         return keys;
     }
 
@@ -387,15 +413,16 @@ public class GitAlgorithmRepository implements IAlgorithmRepository {
         if ( !containsAlgorithm(arg0)) {
             throw new NullPointerException("No 'null' algorithm!");
         }
-        IAlgorithm algorithm = javaAlgorithms.containsKey(arg0)
-                ? javaAlgorithms.get(arg0)
-                : rAlgorithms.get(arg0);
+        IAlgorithm algorithm = getAlgorithm(arg0);
         return processDescriptions.get(algorithm);
     }
 
-    boolean removeAlgorithm(Object arg0) {
-        // TODO remove?
-        return false;
+    boolean removeRAlgorithmGlobally(File file) {
+        if ( !isRFile(file)) {
+            return false;
+        }
+        RepositoryManager repoMgr = RepositoryManagerSingletonWrapper.getInstance();
+        return repoMgr.removeAlgorithm(file);
     }
 
     private boolean isJavaFile(File file) {

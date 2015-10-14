@@ -63,7 +63,7 @@ public class GitAlgorithmRepositoryCM extends ClassKnowingModule {
     private ConfigurationEntry<String> branchNameEntry = new StringConfigurationEntry(branchNameKey, "Branch name", "Name of branch to checkout.", true, "master");
 
     private ConfigurationEntry<String> fileNameRegexEntry = new StringConfigurationEntry(fileNameRegexKey, "Filename REGEX ",
-            "REGEX to specify which directories or files to choose from the repository.", true, "^.*\\.java$");
+            "REGEX to specify which directories or files to choose from the repository.", true, "^.*\\.java$|^.*\\.R$");
 
     private ConfigurationEntry<String> localRepositoryDirectoryEntry = new StringConfigurationEntry(localRepositoryDirectoryKey, "Local repository directory",
             "Path to the local repository directory.", true, "d:\\tmp\\gitrepositories");

@@ -39,10 +39,6 @@ import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -127,14 +123,14 @@ public class DirectoryWatcher {
 
         Path changed = directory.resolve((Path) event.context());
         if (event.kind() == StandardWatchEventKinds.ENTRY_CREATE) {
+            logger.info("File " + changed + " has been created.");
             listener.handleNewFile(changed.toString());
-            logger.info("File " + changed + " was created.");
-        } else if (event.kind() == StandardWatchEventKinds.ENTRY_DELETE) {
-            listener.handleDeleteFile(changed.toString());
-            // TODO
         } else if (event.kind() == StandardWatchEventKinds.ENTRY_MODIFY) {
-            logger.info("no handle to update modified entries.");
-            // TODO
+            logger.info("File " + changed + " had been changed.");
+            listener.handleModifiedFile(changed.toString());
+        } else if (event.kind() == StandardWatchEventKinds.ENTRY_DELETE) {
+            logger.info("File " + changed + " has been deleted.");
+            listener.handleDeleteFile(changed.toString());
         }
     }
 
