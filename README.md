@@ -17,7 +17,19 @@ Checkout as described above. Import the module in your favourite IDE. Add
 to the `52n-wps-webapp/pom.xml`. Rebuild the webapp and restart Servlet Container (e.g. Apache Tomcat).
 
 ## Configuration
-Open the admin UI of your running WPS instance (for example http://localhost:8080/wps/) and login. Go to `Repositories` section and click on **Git Algorithms Repository**. Configure to match your repository and save the changes. Currently, you have to restart the WPS to pull from the repository (will change once an option exist which re-initiates a repository once new parameters have been saved).
+Open the admin UI of your running WPS instance (for example http://localhost:8080/wps/) and login. Go to `Repositories` section and click on **Git Algorithms Repository**. Configure to match your repository and save the changes. 
+
+There you can edit the following properties:
+
+Property name | Description
+------------ | -------------
+Remote repository URL | URL of the GitHub repository to check out.
+Branch name | The branch name to check out. Future work, not yet implemented.
+Filename REGEX  | Only files that fit this REGEX will be used.
+Local repository directory | Local directory in which the remote repository will be cloned.
+
+
+Currently, you have to restart the WPS to pull from the repository (will change once an option exist which re-initiates a repository once new parameters have been saved).
 
 ## Caveats
 Do not work on the files checked out by the WPS while it is running. During startup the repository is doing a `git pull` and expects there are no conflicts. As it can't resolve conflicts automatically, it resets to the last commit. In this case you have to pull and resolve conflicts by hand. However, if you won't make changes there won't be conflicts and Pull requests should just work.
