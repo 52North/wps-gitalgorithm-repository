@@ -78,7 +78,7 @@ public class GitAlgorithmRepositoryCM extends ClassKnowingModule {
 
     private String localRepositoryDirectory;
 
-    private boolean isActive = true;
+    private boolean isActive = false;
 
     private List<AlgorithmEntry> algorithmEntries;
 

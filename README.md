@@ -1,5 +1,5 @@
 # wps-gitalgorithm-repository
-Algorithm repository for [a 52Â°North WPS 4.0.0](https://github.com/52North/WPS) that clones a git repository and adds available Java and R processes to the WPS.
+Algorithm repository for [a 52°North WPS 4.0.0](https://github.com/52North/WPS) that clones a git repository and adds available Java and R processes to the WPS.
 
 ## Module Integration
 Checkout the code via `git clone` and build the repository module via `mvn clean install`. The built `jar` artifact can be found under `target/` folder. Copy and paste it into `${wps-webapp}/WEB-INF/lib` folder of your WPS instance.
