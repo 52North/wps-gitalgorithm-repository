@@ -26,7 +26,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
  * Public License for more details.
  */
-package org.n52.wps.algorithm;
+package org.n52.wps.repository.git;
 
 import static org.mockito.Mockito.verify;
 
@@ -38,8 +38,8 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.runners.MockitoJUnitRunner;
-import org.n52.wps.repository.DirectoryWatcher;
-import org.n52.wps.repository.WatchListener;
+import org.n52.wps.repository.git.DirectoryWatcher;
+import org.n52.wps.repository.git.WatchListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -62,7 +62,8 @@ public class DirectoryWatcherTest {
 
         logger.info("Starting to watch  directory {}", tmpWatchedDir);
 
-        new DirectoryWatcher(tmpWatchedDir, watchlistener);
+        DirectoryWatcher watcher = new DirectoryWatcher(tmpWatchedDir, watchlistener);
+        watcher.start();
 
         //give the watcher a little time
         try {
@@ -84,7 +85,7 @@ public class DirectoryWatcherTest {
             logger.error("Could not create new file, {}.", newfile.getAbsolutePath());
             logger.error(e.getMessage());
         }
-        
+
         verify(watchlistener).handleNewFile(newfile.getAbsolutePath());
     }
 

@@ -26,7 +26,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
  * Public License for more details.
  */
-package org.n52.wps.algorithm;
+package org.n52.wps.repository.git;
 
 import java.io.File;
 import java.io.IOException;
@@ -47,7 +47,7 @@ import org.slf4j.LoggerFactory;
 public class GitTest {
 
     private static final Logger logger = LoggerFactory.getLogger(GitTest.class);
-    
+
     private String localPath, remotePath;
 
     private Repository localRepo;

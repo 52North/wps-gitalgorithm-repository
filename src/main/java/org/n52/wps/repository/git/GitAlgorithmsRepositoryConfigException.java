@@ -26,9 +26,21 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
  * Public License for more details.
  */
-package org.n52.wps.repository;
 
-public interface WatchListener {
+package org.n52.wps.repository.git;
 
-    public void handleNewFile(String filename);
+/**
+ *
+ * @author <a href="mailto:h.bredel@52north.org">Henning Bredel</a>
+ */
+public class GitAlgorithmsRepositoryConfigException extends Exception {
+
+    public GitAlgorithmsRepositoryConfigException(String message) {
+        super(message);
+    }
+
+    public GitAlgorithmsRepositoryConfigException(String message, Throwable cause) {
+        super(message, cause);
+    }
+
 }
