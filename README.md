@@ -24,9 +24,9 @@ There you can edit the following properties:
 Property name | Description
 ------------ | -------------
 Remote repository URL | URL of the GitHub repository to check out.
-Branch name | The branch name to check out. Future work, not yet implemented.
+Branch name | *Future work, not yet implemented.* The branch name to check out.
 Filename REGEX  | Only files that fit this REGEX will be used.
-Local repository directory | Local directory in which the remote repository will be cloned.
+Local repository directory | Local directory to which the remote repository will be cloned. The servlet container user needs write access.
 
 
 Currently, you have to restart the WPS to pull from the repository (will change once an option exist which re-initiates a repository once new parameters have been saved).
