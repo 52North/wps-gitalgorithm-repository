@@ -1,5 +1,5 @@
 # wps-gitalgorithm-repository
-Algorithm repository for [a 52°North WPS 4.0.0](https://github.com/52North/WPS) that clones a git repository and adds available Java and R processes to the WPS.
+Algorithm repository for [a 52Â°North WPS 4.0.0](https://github.com/52North/WPS) that clones a git repository and adds available Java and R processes to the WPS.
 
 ## Module Integration
 Checkout the code via `git clone` and build the repository module via `mvn clean install`. The built `jar` artifact can be found under `target/` folder. Copy and paste it into `${wps-webapp}/WEB-INF/lib` folder of your WPS instance.
@@ -37,3 +37,4 @@ Do not work on the files checked out by the WPS while it is running. During star
 
 Currently, there is a DirectoryWatch on your cloned repository so that changes apply immediately once local changes are detected. This will lead a running WPS to throw exceptions when working on files within the local repository. Again, once the UI can trigger a re-initialize the DirectoryWatcher might become deprecated.
 
+There is an issue with inner classes and packages in Java-processes. These will atm be compiled in a separate file (e.g. ...$1.class) in the same folder as the main class file and if the Java-process is loaded, the inner classes will not be found (the classloader searches in a path following the package-structure of the class). If you have inner classes in your process, you can remove the package as a workaround.
