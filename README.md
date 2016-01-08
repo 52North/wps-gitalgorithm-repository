@@ -37,3 +37,4 @@ Do not work on the files checked out by the WPS while it is running. During star
 
 Currently, there is a DirectoryWatch on your cloned repository so that changes apply immediately once local changes are detected. This will lead a running WPS to throw exceptions when working on files within the local repository. Again, once the UI can trigger a re-initialize the DirectoryWatcher might become deprecated.
 
+There is an issue with inner classes and packages in Java-processes. These will atm be compiled in a separate file (e.g. ...$1.class) in the same folder as the main class file and if the Java-process is loaded, the inner classes will not be found (the classloader searches in a path following the package-structure of the class). If you have inner classes in your process, you can remove the package as a workaround.
