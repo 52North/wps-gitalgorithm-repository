@@ -28,8 +28,10 @@
  */
 package org.n52.wps.repository.git.module;
 
+import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import org.n52.wps.repository.git.GitAlgorithmRepository;
@@ -57,30 +59,31 @@ public class GitAlgorithmRepositoryCM extends ClassKnowingModule {
 
     public static final String localRepositoryDirectoryKey = "local_repository_directory";
 
-    private ConfigurationEntry<String> repositoryURLEntry = new StringConfigurationEntry(repositoryURLKey, "Remote repository URL",
+    private final ConfigurationEntry<String> repositoryURLEntry = new StringConfigurationEntry(repositoryURLKey, "Remote repository URL",
             "URL of remote repository, e.g. 'https://github.com/username/repository.git'.", true, "-");
 
-    private ConfigurationEntry<String> branchNameEntry = new StringConfigurationEntry(branchNameKey, "Branch name", "Name of branch to checkout.", true, "master");
+    private final ConfigurationEntry<String> branchNameEntry = new StringConfigurationEntry(branchNameKey, "Branch name", "Name of branch to checkout.", true, "master");
 
-    private ConfigurationEntry<String> fileNameRegexEntry = new StringConfigurationEntry(fileNameRegexKey, "Filename REGEX ",
+    private final ConfigurationEntry<String> fileNameRegexEntry = new StringConfigurationEntry(fileNameRegexKey, "Filename REGEX ",
             "REGEX to specify which directories or files to choose from the repository.", true, "^.*\\.java$|^.*\\.R$");
 
-    private ConfigurationEntry<String> localRepositoryDirectoryEntry = new StringConfigurationEntry(localRepositoryDirectoryKey, "Local repository directory",
-            "Path to the local repository directory.", true, "d:\\tmp\\gitrepositories");
+    // TODO create default value based on operating system, for detection see http://www.code4copy.com/java/post/detecting-os-type-in-java and http://stackoverflow.com/questions/31909107/javas-os-name-for-windows-10
+    private final ConfigurationEntry<String> localRepositoryDirectoryEntry = new StringConfigurationEntry(localRepositoryDirectoryKey, "Local repository directory",
+            "Path to the local repository directory.", true, "c:\\tmp\\gitrepositories");
 
-    private List<? extends ConfigurationEntry<?>> configurationEntries = Arrays.asList(repositoryURLEntry, branchNameEntry, fileNameRegexEntry, localRepositoryDirectoryEntry);
+    private final List<? extends ConfigurationEntry<?>> configurationEntries = Arrays.asList(repositoryURLEntry, branchNameEntry, fileNameRegexEntry, localRepositoryDirectoryEntry);
 
-    private String repositoryURL;
+    private String repositoryURL = repositoryURLEntry.getValue();
 
-    private String branchName;
+    private String branchName = branchNameEntry.getValue();
 
-    private String fileNameRegex;
+    private String fileNameRegex = fileNameRegexEntry.getValue();
 
-    private String localRepositoryDirectory;
+    private String localRepositoryDirectory = localRepositoryDirectoryEntry.getValue();
 
     private boolean isActive = false;
 
-    private List<AlgorithmEntry> algorithmEntries;
+    private final List<AlgorithmEntry> algorithmEntries;
 
     public GitAlgorithmRepositoryCM() {
         algorithmEntries = new ArrayList<>();
@@ -138,7 +141,7 @@ public class GitAlgorithmRepositoryCM extends ClassKnowingModule {
     @ConfigurationKey(
             key = localRepositoryDirectoryKey)
     public void setLocalRepositoryDirectory(String localRepositoryDirectory) {
-        this.localRepositoryDirectory = localRepositoryDirectory;
+         this.localRepositoryDirectory = localRepositoryDirectory;
     }
 
     @Override
@@ -153,12 +156,12 @@ public class GitAlgorithmRepositoryCM extends ClassKnowingModule {
 
     @Override
     public List<AlgorithmEntry> getAlgorithmEntries() {
-        return algorithmEntries;
+        return ImmutableList.copyOf(algorithmEntries);
     }
 
     @Override
     public List<FormatEntry> getFormatEntries() {
-        return null;
+        return Collections.emptyList();
     }
 
     @Override
