@@ -34,6 +34,8 @@ package org.n52.wps.repository.git;
  * @author <a href="mailto:h.bredel@52north.org">Henning Bredel</a>
  */
 public class UpdateGitAlgorithmsRepositoryException extends Exception {
+    
+    private static final long serialVersionUID = -665008217755186895L;
 
     public UpdateGitAlgorithmsRepositoryException(String message) {
         super(message);
