@@ -41,6 +41,8 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -124,7 +126,61 @@ public class GitAlgorithmRepositoryTest {
 
         GitAlgorithmRepositoryCM config = new GitAlgorithmRepositoryCM();
         config.setRepositoryURL(cleanRepository.toFile().toURI().toURL().toString());
-        File targetRepo = testRoot.newFolder("testRepoLoadRFileFromRoot");
+        File targetRepo = testRoot.newFolder("loadRFileFromRoot");
+        config.setLocalRepositoryDirectory(targetRepo.toString());
+        GitAlgorithmRepository gitRepo = new GitAlgorithmRepository(false, config, repoManager);
+
+        Assert.assertNotNull(gitRepo);
+        MatcherAssert.assertThat(repoManager.getAlgorithms().size(), is(1));
+        MatcherAssert.assertThat(repoManager.getAlgorithms().get(0), is(targetRepo.toPath().resolve(testfile.getFileName()).toString()));
+    }
+
+    @Test
+    public void loadMultipleRFileFromRoot() throws IOException, GitAPIException, UpdateGitAlgorithmsRepositoryException, GitAlgorithmsRepositoryConfigException {
+        Git repoGit = Git.open(cleanRepository.toFile());
+
+        List<String> lines = Lists.newArrayList("# wps.des: id = testgit1;");
+        Path testfile1 = cleanRepository.resolve("test1.R");
+        Files.write(testfile1, lines);
+        repoGit.add().addFilepattern(cleanRepository.relativize(testfile1).toString()).call();
+        lines = Lists.newArrayList("# wps.des: id = testgit2;");
+        Path testfile2 = cleanRepository.resolve("test2.R");
+        Files.write(testfile2, lines);
+        repoGit.add().addFilepattern(cleanRepository.relativize(testfile2).toString()).call();
+
+        repoGit.commit().setMessage("commit test file").call();
+
+        GitAlgorithmRepositoryCM config = new GitAlgorithmRepositoryCM();
+        config.setRepositoryURL(cleanRepository.toFile().toURI().toURL().toString());
+        File targetRepo = testRoot.newFolder("loadMultipleRFileFromRoot");
+        config.setLocalRepositoryDirectory(targetRepo.toString());
+        GitAlgorithmRepository gitRepo = new GitAlgorithmRepository(false, config, repoManager);
+
+        Assert.assertNotNull(gitRepo);
+        MatcherAssert.assertThat(repoManager.getAlgorithms().size(), is(2));
+        MatcherAssert.assertThat(repoManager.getAlgorithms().get(0), is(targetRepo.toPath().resolve(testfile1.getFileName()).toString()));
+        MatcherAssert.assertThat(repoManager.getAlgorithms().get(1), is(targetRepo.toPath().resolve(testfile2.getFileName()).toString()));
+    }
+
+    @Test
+    public void loadRFileFromRootWithRegex() throws IOException, GitAPIException, UpdateGitAlgorithmsRepositoryException, GitAlgorithmsRepositoryConfigException {
+        Git repoGit = Git.open(cleanRepository.toFile());
+
+        List<String> lines = Lists.newArrayList("# wps.des: id = testgit1a;");
+        Path testfile = cleanRepository.resolve("test.R");
+        Files.write(testfile, lines);
+        repoGit.add().addFilepattern(cleanRepository.relativize(testfile).toString()).call();
+        lines = Lists.newArrayList("# wps.des: id = testgit1b;");
+        testfile = cleanRepository.resolve("anothertest.R");
+        Files.write(testfile, lines);
+        repoGit.add().addFilepattern(cleanRepository.relativize(testfile).toString()).call();
+
+        repoGit.commit().setMessage("commit test files").call();
+
+        GitAlgorithmRepositoryCM config = new GitAlgorithmRepositoryCM();
+        config.setRepositoryURL(cleanRepository.toFile().toURI().toURL().toString());
+        config.setFileNameRegex("^.*another.*$");
+        File targetRepo = testRoot.newFolder("loadRFileFromRootWithRegex");
         config.setLocalRepositoryDirectory(targetRepo.toString());
         GitAlgorithmRepository gitRepo = new GitAlgorithmRepository(false, config, repoManager);
 
@@ -209,6 +265,77 @@ public class GitAlgorithmRepositoryTest {
         Assert.assertNotNull(gitRepo);
         MatcherAssert.assertThat(repoManager.getAlgorithms().size(), is(1));
         MatcherAssert.assertThat(repoManager.getAlgorithms().get(0), is(targetRepo.toPath().resolve(dirAndName).toString()));
+    }
+
+    @Test
+    public void loadMultipleRFilesFromDifferentSubdirectories() throws IOException, GitAPIException, UpdateGitAlgorithmsRepositoryException, GitAlgorithmsRepositoryConfigException {
+        List<String> lines = Lists.newArrayList("# wps.des: id = testgit3subdir;");
+        String dirAndName1 = "dir/subdir/testsubdir.R";
+        Path testfile1 = cleanRepository.resolve(dirAndName1);
+        Files.createDirectories(testfile1.getParent());
+        Files.write(testfile1, lines);
+
+        lines = Lists.newArrayList("# wps.des: id = testgit3anothersubdir;");
+        String dirAndName2 = "dir/anothersubdir/testsubdir.R";
+        Path testfile2 = cleanRepository.resolve(dirAndName2);
+        Files.createDirectories(testfile2.getParent());
+        Files.write(testfile2, lines);
+
+        Git repoGit = Git.open(cleanRepository.toFile());
+        repoGit.add().addFilepattern("dir").call();
+        repoGit.commit().setMessage("commit test files").call();
+
+        GitAlgorithmRepositoryCM config = new GitAlgorithmRepositoryCM();
+        config.setRepositoryURL(cleanRepository.toFile().toURI().toURL().toString());
+        File targetRepo = testRoot.newFolder("loadMultipleRFilesFromDifferentSubdirectories");
+        config.setLocalRepositoryDirectory(targetRepo.toString());
+        GitAlgorithmRepository gitRepo = new GitAlgorithmRepository(false, config, repoManager);
+
+        Assert.assertNotNull(gitRepo);
+        MatcherAssert.assertThat(repoManager.getAlgorithms().size(), is(2));
+        ArrayList<String> algs = Lists.newArrayList(repoManager.getAlgorithms());
+        algs.sort(Comparator.naturalOrder());
+        MatcherAssert.assertThat(repoManager.getAlgorithms().get(0), is(targetRepo.toPath().resolve(dirAndName2).toString()));
+        MatcherAssert.assertThat(repoManager.getAlgorithms().get(1), is(targetRepo.toPath().resolve(dirAndName1).toString()));
+    }
+
+    @Test
+    public void loadMultipleRFilesFromDifferentSubdirectoriesWithRegex() throws IOException, GitAPIException, UpdateGitAlgorithmsRepositoryException, GitAlgorithmsRepositoryConfigException {
+        List<String> lines = Lists.newArrayList("# wps.des: id = testgit3subdir;");
+        String dirAndName1 = "dir/subdir/testsubdir.R";
+        Path testfile1 = cleanRepository.resolve(dirAndName1);
+        Files.createDirectories(testfile1.getParent());
+        Files.write(testfile1, lines);
+
+        lines = Lists.newArrayList("# wps.des: id = testgit3anothersubdir;");
+        String dirAndName2 = "dir/anothersubdir/testsubdir.R";
+        Path testfile2 = cleanRepository.resolve(dirAndName2);
+        Files.createDirectories(testfile2.getParent());
+        Files.write(testfile2, lines);
+
+        lines = Lists.newArrayList("# wps.des: id = testgit3anothersubdir;");
+        String dirAndName3 = "dir/yetanothersubdir/testsubdir.R";
+        Path testfile3 = cleanRepository.resolve(dirAndName3);
+        Files.createDirectories(testfile3.getParent());
+        Files.write(testfile3, lines);
+
+        Git repoGit = Git.open(cleanRepository.toFile());
+        repoGit.add().addFilepattern("dir").call();
+        repoGit.commit().setMessage("commit test files").call();
+
+        GitAlgorithmRepositoryCM config = new GitAlgorithmRepositoryCM();
+        config.setRepositoryURL(cleanRepository.toFile().toURI().toURL().toString());
+        config.setFileNameRegex("(?!.*yet).*");
+        File targetRepo = testRoot.newFolder("loadMultipleRFilesFromDifferentSubdirectoriesWithRegex");
+        config.setLocalRepositoryDirectory(targetRepo.toString());
+        GitAlgorithmRepository gitRepo = new GitAlgorithmRepository(false, config, repoManager);
+
+        Assert.assertNotNull(gitRepo);
+        MatcherAssert.assertThat(repoManager.getAlgorithms().size(), is(2));
+        ArrayList<String> algs = Lists.newArrayList(repoManager.getAlgorithms());
+        algs.sort(Comparator.naturalOrder());
+        MatcherAssert.assertThat(repoManager.getAlgorithms().get(0), is(targetRepo.toPath().resolve(dirAndName2).toString()));
+        MatcherAssert.assertThat(repoManager.getAlgorithms().get(1), is(targetRepo.toPath().resolve(dirAndName1).toString()));
     }
 
     private static class FileRepository extends RepositoryManager {

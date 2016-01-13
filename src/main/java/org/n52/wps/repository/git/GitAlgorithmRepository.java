@@ -442,24 +442,15 @@ public class GitAlgorithmRepository implements IAlgorithmRepository {
         logger.info("Algorithm class registered: {}" + " identifier: {}", plainFilename, algorithmIdentifier);
     }
 
-    private File[] getFileSiblings(File file) {
-        logger.trace("Looking for algorithms in the same directory as {} using regex {}", file, filenameRegex);
-        final File workingCopy = file.getParentFile();
-        File[] files = workingCopy.listFiles((File dir, String name) -> {
-            boolean matches = name.matches(filenameRegex);
-            // FIXME traverse all directories
-            logger.trace("{}dding file {}/{} from local repository.", matches ? "A" : "NOT a", dir, name);
-            return matches;
-        });
-        logger.debug("Found {} files that are candidates for algorithms next to {}", files.length, file);
-
-        return files;
-    }
-
     private List<Path> findAllFilesInDirectory(Path pathToDir) throws IOException {
         List<Path> pathsToFiles = Files.walk(pathToDir)
                 .filter(Files::isRegularFile)
                 .filter(path -> !path.toString().contains(File.separator + ".git" + File.separator))
+                .filter(path -> {
+                    boolean matches = path.toString().matches(filenameRegex);
+                    logger.trace("{}dding file {}/{} from local repository.", matches ? "A" : "NOT a", path);
+                    return matches;
+                })
                 .collect(Collectors.toList());
 
         return pathsToFiles;
