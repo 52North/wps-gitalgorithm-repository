@@ -113,6 +113,15 @@ public class GitAlgorithmRepository implements IAlgorithmRepository {
 
     /**
      *
+     * @throws UpdateGitAlgorithmsRepositoryException on errors pulling changes into the local repository
+     * @throws GitAlgorithmsRepositoryConfigException on configuration errors
+     */
+    protected GitAlgorithmRepository() throws UpdateGitAlgorithmsRepositoryException, GitAlgorithmsRepositoryConfigException {
+        this(true);
+    }
+
+    /**
+     *
      * @param startRepositoryWatcher start a watcher thread for the repository directory, so that changes to local files trigger a re-deploy of the algorithms
      * @throws UpdateGitAlgorithmsRepositoryException on errors pulling changes into the local repository
      * @throws GitAlgorithmsRepositoryConfigException on configuration errors
@@ -137,24 +146,6 @@ public class GitAlgorithmRepository implements IAlgorithmRepository {
         changedFiles = new ArrayList<>();
 
         this.configuration = configuration;
-//        List<? extends ConfigurationEntry<?>> configEntries = configuration.getConfigurationEntries();
-//
-//        configEntries.stream().forEach((configurationEntry) -> {
-//            switch (configurationEntry.getKey()) {
-//                case GitAlgorithmRepositoryCM.localRepositoryDirectoryKey:
-//                    localPath = (String) configurationEntry.getValue();
-//                    break;
-//                case GitAlgorithmRepositoryCM.repositoryURLKey:
-//                    remotePath = (String) configurationEntry.getValue();
-//                    break;
-//                case GitAlgorithmRepositoryCM.fileNameRegexKey:
-//                    filenameRegex = (String) configurationEntry.getValue();
-//                    break;
-//                case GitAlgorithmRepositoryCM.branchNameKey:
-//                    branch = (String) configurationEntry.getValue();
-//                    break;
-//            }
-//        });
         localPath = configuration.getLocalRepositoryDirectory();
         remotePath = configuration.getRepositoryURL();
         filenameRegex = configuration.getFileNameRegex();
