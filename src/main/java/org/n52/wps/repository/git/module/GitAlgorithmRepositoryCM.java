@@ -65,7 +65,7 @@ public class GitAlgorithmRepositoryCM extends ClassKnowingModule {
     private final ConfigurationEntry<String> branchNameEntry = new StringConfigurationEntry(branchNameKey, "Branch name", "Name of branch to checkout.", true, "master");
 
     private final ConfigurationEntry<String> fileNameRegexEntry = new StringConfigurationEntry(fileNameRegexKey, "Filename REGEX ",
-            "REGEX to specify which directories or files to choose from the repository.", true, "^.*\\.java$|^.*\\.R$");
+            "REGEX to specify which directories or files to choose from the repository, for example '^.*myalgo.*$' to add online paths containing the string 'myalgo', or '(?!.*mydir).*' to NOT add any path containing mydir.", true, "^.*\\.java$|^.*\\.R$");
 
     // TODO create default value based on operating system, for detection see http://www.code4copy.com/java/post/detecting-os-type-in-java and http://stackoverflow.com/questions/31909107/javas-os-name-for-windows-10
     private final ConfigurationEntry<String> localRepositoryDirectoryEntry = new StringConfigurationEntry(localRepositoryDirectoryKey, "Local repository directory",
