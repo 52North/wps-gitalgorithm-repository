@@ -1,5 +1,5 @@
-/**
- * ﻿Copyright (C) 2015 52°North Initiative for Geospatial Open Source
+/*
+ * ﻿Copyright (C) 2018 52°North Initiative for Geospatial Open Source
  * Software GmbH
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -96,7 +96,7 @@ public class GitAlgorithmRepository implements IAlgorithmRepository {
     private final Map<String, IAlgorithm> javaAlgorithms;
 
 //    private final Map<String, IAlgorithm> rAlgorithms;
-    
+
     private final Map<File, String> file2Wkn;
 
     private ConfigurationModule gitAlgorithmRepoConfigModule;
@@ -140,7 +140,7 @@ public class GitAlgorithmRepository implements IAlgorithmRepository {
             addAlgorithms(gitDirectory, startRepositoryWatcher);
         }
     }
-    
+
     private void addAlgorithms(File gitDirectory, boolean startRepositoryWatcher) {
         File[] algorithmFiles = getFiles(gitDirectory);
         addJavaAlgorithms(algorithmFiles);
@@ -162,21 +162,21 @@ public class GitAlgorithmRepository implements IAlgorithmRepository {
 
             @Override
             public void handleDeleteFile(String filename) {
-                
+
                 // TODO untested
-                
+
                 logger.debug("deleting algorithm '{}'", filename);
                 File file = new File(filename);
                 if (file2Wkn.containsKey(file)) {
                     String wkn = file2Wkn.get(file);
                     if (isJavaFile(file)) {
                         unregisterAlgorithm(wkn, javaAlgorithms);
-                    } 
+                    }
                 } else if (isRFile(file)) {
                     removeRAlgorithmGlobally(file);
                 }
             }
-            
+
             private void unregisterAlgorithm(String wkn, Map<String, IAlgorithm> algorithms) {
                 IAlgorithm algorithm = algorithms.get(wkn);
                 processDescriptions.remove(algorithm);
