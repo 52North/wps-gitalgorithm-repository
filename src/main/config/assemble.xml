@@ -1,0 +1,20 @@
+<assembly>
+	<id>binaries</id>
+	<formats>
+		<format>dir</format>
+		<format>zip</format>
+		<format>tar.gz</format>
+	</formats>
+	<includeBaseDirectory>false</includeBaseDirectory>
+	<dependencySets>
+		<dependencySet>
+			<includes>
+				<include>org.n52.wps:52n-wps-git-algorithm-repository</include>
+				<include>com.googlecode.javaewah:JavaEWAH</include>
+				<include>org.eclipse.jgit:org.eclipse.jgit</include>
+				<include>com.jcraft:jsch</include>
+			</includes>
+			<outputDirectory>deploy-to-wps</outputDirectory>
+		</dependencySet>
+	</dependencySets>
+</assembly>
