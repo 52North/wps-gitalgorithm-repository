@@ -471,4 +471,16 @@
         <version>1.5.2</version>
         <license>GPL 2.0 license w/ CPE</license>
     </artifact>
+    <artifact>
+        <groupId>org.n52.sensorweb.sos</groupId>
+        <artifactId>api</artifactId>
+        <version>5.0.0-SNAPSHOT</version>
+		<license>GNU General Public License, version 2</license>
+    </artifact>
+    <artifact>
+        <groupId>org.n52.sensorweb.sos</groupId>
+        <artifactId>coding-sos-v20</artifactId>
+        <version>5.0.0-SNAPSHOT</version>
+		<license>GNU General Public License, version 2</license>
+    </artifact>
 </license-lookup>
