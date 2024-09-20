@@ -1,3 +1,7 @@
+# ARCHIVED
+
+This project is no longer maintained and will not receive any further updates. If you plan to continue using it, please be aware that future security issues will not be addressed.
+
 # wps-gitalgorithm-repository
 Algorithm repository for a [52°North WPS 4.x](https://github.com/52North/WPS/tree/wps-4.0) that clones a git repository and adds available Java and R processes to the WPS.
 
